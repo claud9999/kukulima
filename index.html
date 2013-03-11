@@ -1,0 +1,159 @@
+<html><head><script type="text/javascript">
+map_elt = null;
+kp_elt = null;
+
+map_text = "    ";
+map_width = 0; map_height = 0;
+buffer_width = 2; buffer_height = 2;
+vision_distance = 10;
+event_distance = 20;
+loc_x = 0;
+loc_y = 0;
+
+function Terrain(char, desc, move) {
+    this.char = char; this.desc = desc; this.move = move;
+}
+
+terrain_options = {
+    "bare_dirt" : new Terrain("_", "bare dirt", 1)
+    ,"grass" : new Terrain("v", "grass", 1)
+    ,"tree" : new Terrain("TY", "tree", 10)
+};
+
+terrain_mapping = {
+    "_" : terrain_options["bare_dirt"]
+    ,"v" : terrain_options["grass"]
+    ,"Y" : terrain_options["tree"]
+    ,"T" : terrain_options["tree"]
+}
+
+terrain_distribution = "_____vvvvYT";
+
+function paint_map() {
+    s = "";
+    for (y = loc_y - vision_distance; y <= loc_y + vision_distance; y++) {
+	for (x = loc_x - vision_distance; x < loc_x + vision_distance; x++) {
+	    // todo: add vision range computation (sqrt(sqr(x) + sqr(y)))
+	    s += map_text[y * buffer_width + x];
+	}
+	s += "\n";
+    }
+    map_elt.innerHTML = "<pre>" + s + "</pre>";
+}
+
+function pick_char(x, y) {
+    c = terrain_distribution[Math.floor(Math.random() * terrain_distribution.length)];
+    i = Math.floor(Math.random() * 15);
+    if (i > 11) return c;
+    switch (i) {
+	case 0:
+	    i = (y - 1) * buffer_width + x - 1;
+	    break;
+	case 1:
+	case 2:
+	    i = (y - 1) * buffer_width + x;
+	    break;
+	case 3:
+	    i = (y - 1) * buffer_width + x + 1;
+	    break;
+	case 4:
+	case 5:
+	    i = y * buffer_width + x - 1;
+	    break;
+	case 6:
+	case 7:
+	    i = y * buffer_width + x + 1;
+	    break;
+	case 8:
+	    i = (y + 1) * buffer_width + x - 1;
+	    break;
+	case 9:
+	case 10:
+	    i = (y + 1) * buffer_width + x;
+	    break;
+	case 11:
+	    i = (y + 1) * buffer_width + x + 1;
+	    break;
+    }
+    if (map_text[i] == ' ') return c;
+    return map_text[i];
+}
+
+function place_terrain(x, y) {
+    c = pick_char(x, y);
+    map_text = map_text.substr(0, y * buffer_width + x) + c + map_text.substr(y * buffer_width + x + 1);
+}
+
+function pad_string(char, len) {
+    for (s = "", i = len; i; s += char, i--) { ; }
+    return s;
+}
+
+function check_map() {
+    if (loc_x < event_distance) {
+	// add to the left
+	add_size = event_distance - loc_x;
+	t = pad_string(" ", add_size);
+	for (y = 0; y < buffer_height; y++) {
+	    map_text = map_text.substr(0, y * buffer_width) + t + map_text.substr(y * buffer_width);
+	}
+	for (x = add_size; x > 0; x--) {
+	    for (y = 1; y < map_height - 1; y++) { place_terrain(x, y); }
+	}
+	map_width += add_size; buffer_width += add_size;
+	loc_x += add_size;
+    }
+    if (loc_x + event_distance > map_width) {
+	// add to the right
+	add_size = loc_x + event_distance - map_width;
+	t = pad_string(" ", add_size);
+	for (y = 1; y <= buffer_height; y++) {
+	    map_text = map_text.substr(0, y * buffer_width) + t + map_text.substr(y * buffer_width);
+	}
+	for (x = buffer_width - 1; x < buffer_width - 1 + add_size; x++) {
+	    for (y = 1; y < map_height - 1; y++) { place_terrain(x, y); }
+	}
+	map_width += add_size; buffer_width += add_size;
+    }
+    if (loc_y < event_distance) {
+	// add to the top
+	add_size = event_distance - loc_y;
+	t = pad_string(" ", add_size * buffer_width);
+	map_text = t + map_text;
+	for (y = add_size; y > 0; y--) {
+	    for (x = 1; x < buffer_width - 1; x++) {
+		place_terrain(x, y);
+	    }
+	}
+	map_height += add_size; buffer_height += add_size;
+	loc_y += add_size;
+    }
+    if (loc_y + event_distance > map_height) {
+	// add to the bottom
+	add_size = loc_y + event_distance - map_height;
+	t = pad_string(" ", add_size * buffer_width);
+	map_text = map_text + t;
+	for (y = buffer_height - 1; y < add_size + buffer_height - 1; y++) {
+	    for (x = 1; x < buffer_width - 1; x++) { place_terrain(x, y); }
+	}
+	map_height += add_size; buffer_height += add_size;
+    }
+}
+
+function kp(e) {
+    kp_elt.innerHTML = " keypress: " + e.charCode + " + " + e.keyCode;
+    check_map();
+    paint_map();
+}
+
+function go() {
+    map_elt = document.getElementById("map");
+    kp_elt = document.getElementById("kp");
+    document.onkeypress = kp;
+}
+</script></head><body onload="go()">
+<div id="map">
+</div>
+<div id="kp">
+</div>
+</body></html>
