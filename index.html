@@ -3,7 +3,6 @@ map_elt = null;
 kp_elt = null;
 
 map_text = "    ";
-map_width = 0; map_height = 0;
 buffer_width = 2; buffer_height = 2;
 vision_distance = 10;
 event_distance = 20;
@@ -31,10 +30,11 @@ terrain_distribution = "_____vvvvYT";
 
 function paint_map() {
     s = "";
-    for (y = loc_y - vision_distance; y <= loc_y + vision_distance; y++) {
-	for (x = loc_x - vision_distance; x < loc_x + vision_distance; x++) {
+    for (y = -vision_distance; y <= vision_distance; y++) {
+	for (x = -vision_distance; x <= vision_distance; x++) {
 	    // todo: add vision range computation (sqrt(sqr(x) + sqr(y)))
-	    s += map_text[y * buffer_width + x];
+	    if (x || y) s += map_text[(loc_y + y) * buffer_width + loc_x + x];
+	    else s += '@';
 	}
 	s += "\n";
     }
@@ -90,58 +90,48 @@ function pad_string(char, len) {
 }
 
 function check_map() {
-    if (loc_x < event_distance) {
+    while(loc_x < event_distance) {
 	// add to the left
-	add_size = event_distance - loc_x;
-	t = pad_string(" ", add_size);
-	for (y = 0; y < buffer_height; y++) {
-	    map_text = map_text.substr(0, y * buffer_width) + t + map_text.substr(y * buffer_width);
+	for (y = buffer_height - 1; y >= 0; y--) {
+	    map_text = map_text.substr(0, y * buffer_width) + " " + map_text.substr(y * buffer_width);
 	}
-	for (x = add_size; x > 0; x--) {
-	    for (y = 1; y < map_height - 1; y++) { place_terrain(x, y); }
-	}
-	map_width += add_size; buffer_width += add_size;
-	loc_x += add_size;
+	buffer_width++; loc_x++;
+	for (y = 0; y < buffer_height - 2; y++) { place_terrain(1, y + 1); }
     }
-    if (loc_x + event_distance > map_width) {
+    while(loc_x + event_distance > buffer_width - 1) {
 	// add to the right
-	add_size = loc_x + event_distance - map_width;
-	t = pad_string(" ", add_size);
-	for (y = 1; y <= buffer_height; y++) {
-	    map_text = map_text.substr(0, y * buffer_width) + t + map_text.substr(y * buffer_width);
+	for (y = buffer_height; y; y--) {
+	    map_text = map_text.substr(0, y * buffer_width + 1) + " " + map_text.substr(y * buffer_width + 1);
 	}
-	for (x = buffer_width - 1; x < buffer_width - 1 + add_size; x++) {
-	    for (y = 1; y < map_height - 1; y++) { place_terrain(x, y); }
-	}
-	map_width += add_size; buffer_width += add_size;
+	buffer_width++;
+	for (y = 0; y < buffer_height - 2; y++) { place_terrain(buffer_width - 2, y + 1); }
     }
-    if (loc_y < event_distance) {
+    while(loc_y < event_distance) {
 	// add to the top
-	add_size = event_distance - loc_y;
-	t = pad_string(" ", add_size * buffer_width);
-	map_text = t + map_text;
-	for (y = add_size; y > 0; y--) {
-	    for (x = 1; x < buffer_width - 1; x++) {
-		place_terrain(x, y);
-	    }
-	}
-	map_height += add_size; buffer_height += add_size;
-	loc_y += add_size;
+	map_text = pad_string(" ", buffer_width) + map_text;
+	buffer_height++; loc_y++;
+	for (x = 0; x < buffer_width - 2; x++) { place_terrain(x + 1, 1); }
     }
-    if (loc_y + event_distance > map_height) {
+    while(loc_y + event_distance > buffer_height - 2) {
 	// add to the bottom
-	add_size = loc_y + event_distance - map_height;
-	t = pad_string(" ", add_size * buffer_width);
-	map_text = map_text + t;
-	for (y = buffer_height - 1; y < add_size + buffer_height - 1; y++) {
-	    for (x = 1; x < buffer_width - 1; x++) { place_terrain(x, y); }
-	}
-	map_height += add_size; buffer_height += add_size;
+	map_text = map_text + pad_string(" ", buffer_width);
+	buffer_height++;
+	for (x = 0; x < buffer_width - 1; x++) { place_terrain(x + 1, buffer_height - 2); }
     }
 }
 
 function kp(e) {
     kp_elt.innerHTML = " keypress: " + e.charCode + " + " + e.keyCode;
+    switch(e.charCode) {
+	case 0:
+	    switch(e.keyCode) {
+		case 37: loc_x -= 1; break;
+		case 38: loc_y -= 1; break;
+		case 39: loc_x += 1; break;
+		case 40: loc_y += 1; break;
+	    }
+	    break;
+    }
     check_map();
     paint_map();
 }
@@ -149,6 +139,8 @@ function kp(e) {
 function go() {
     map_elt = document.getElementById("map");
     kp_elt = document.getElementById("kp");
+    check_map();
+    paint_map();
     document.onkeypress = kp;
 }
 </script></head><body onload="go()">
