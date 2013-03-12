@@ -1,10 +1,11 @@
-<html><head><script type="text/javascript">
+<html><head><script type="text/javascript" src="creature.js"></script><script type="text/javascript">
 map_elt = null;
 kp_elt = null;
 
 map_text = "    ";
 buffer_width = 2; buffer_height = 2;
-vision_distance = 10;
+vision_distance = 10; vision_distance_sq = 100;
+render_distance = 10;
 event_distance = 20;
 loc_x = 0;
 loc_y = 0;
@@ -13,35 +14,6 @@ loc_y = 0;
 function Terrain(char, desc, move) {
     this.char = char; this.desc = desc; this.move = move;
 }
-
-// CLASS: Creature
-function Creature(char, name, desc, x, y, movefn, viewfn) {
-    this.char = char; this.name = name; this.desc = desc; this.x = x; this.y = y; this.movefn = movefn; this.viewfn = viewfn;
-}
-
-creature_distribution = {
-    '_' : 'cs              '
-    ,'v': 'cccsssss^       '
-    ,'T': 'ssCC^^^^^^      '
-    ,'Y': 'ssCC^^^^^^      '
-}
-
-function cat_move(cat) {
-    cat.x++;
-}
-
-function snake_move(snake) {
-    snake.y++;
-}
-
-function bird_move(bird) {
-    bird.x += Math.floor(Math.random() * 5) - 2;
-    bird.y += Math.floor(Math.random() * 5) - 2;
-}
-
-function null_view(creature) { ; }
-
-creature_list = [];
 
 terrain_options = {
     'bare_dirt' : new Terrain('_', 'bare dirt', 1)
@@ -58,27 +30,11 @@ terrain_mapping = {
 
 terrain_distribution = '_____vvvvYT';
 
-creature_count = 1;
-function add_creatures() {
-    for (i = 0; i < creature_count; i++) {
-	x = Math.floor(Math.random() * (buffer_width - 2)) + 1;
-	y = Math.floor(Math.random() * (buffer_height - 2)) + 1;
-	t = map_text[y * buffer_width + x];
-	r = creature_distribution[t][Math.floor(Math.random() * creature_distribution[t].length)];
-	switch(r) {
-	    case 'c': creature_list.push(new Creature('c', 'small cat', 'a small cat', x, y, cat_move, null_view)); break;
-	    case 's': creature_list.push(new Creature('s', 'small snake', 'a small snake', x, y, snake_move, null_view)); break;
-	    case 'C': creature_list.push(new Creature('C', 'big cat', 'a big cat', x, y, cat_move, null_view)); break;
-	    case '^': creature_list.push(new Creature('^', 'small bird', 'a small bird', x, y, bird_move, null_view)); break;
-	}
-    }
-}
-
 function paint_map() {
     s = '';
-    for (y = -vision_distance; y <= vision_distance; y++) {
-	for (x = -vision_distance; x <= vision_distance; x++) {
-	    if (Math.sqrt(x * x + y * y) > vision_distance) { s += ' '; continue; }
+    for (y = -render_distance; y <= render_distance; y++) {
+	for (x = -render_distance; x <= render_distance; x++) {
+	    if (x * x + y * y > vision_distance_sq) { s += ' '; continue; }
 	    if (!x && !y) { s += '@'; continue; }
 	    for (i = 0; i < creature_list.length; i++) {
 		if (creature_list[i].x == loc_x + x && creature_list[i].y == loc_y + y) {
@@ -190,15 +146,21 @@ function highlight(key) {
     interval_var = window.setInterval(unhighlight, 200);
 }
 
-function move(dx, dy) {
+function ticktock() {
     add_creatures();
-    for (i = 0; i < creature_list.length; i++) {
-	creature_list[i].movefn(creature_list[i]);
-    }
+    move_creatures();
+    paint_map();
+}
+
+function move(dx, dy) {
     new_x = loc_x + dx; new_y = loc_y + dy;
     c = map_text[new_y * buffer_width + new_x];
     t = terrain_mapping[c];
-    if (t.move) { loc_x = new_x; loc_y = new_y; }
+    if (t.move) {
+	loc_x = new_x; loc_y = new_y;
+	check_map();
+    }
+    ticktock();
 }
 
 function keypress(k) {
@@ -209,8 +171,6 @@ function keypress(k) {
 	case 's': highlight(k); move(0, 1); break;
 	case 'd': highlight(k); move(1, 0); break;
     }
-    check_map();
-    paint_map();
 }
 
 function kp(e) {
