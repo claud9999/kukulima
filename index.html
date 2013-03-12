@@ -9,36 +9,88 @@ event_distance = 20;
 loc_x = 0;
 loc_y = 0;
 
+// CLASS: Terrain
 function Terrain(char, desc, move) {
     this.char = char; this.desc = desc; this.move = move;
 }
 
+// CLASS: Creature
+function Creature(char, name, desc, x, y, movefn, viewfn) {
+    this.char = char; this.name = name; this.desc = desc; this.x = x; this.y = y; this.movefn = movefn; this.viewfn = viewfn;
+}
+
+creature_distribution = {
+    '_' : 'cs              '
+    ,'v': 'cccsssss^       '
+    ,'T': 'ssCC^^^^^^      '
+    ,'Y': 'ssCC^^^^^^      '
+}
+
+function cat_move(cat) {
+    cat.x++;
+}
+
+function snake_move(snake) {
+    snake.y++;
+}
+
+function bird_move(bird) {
+    bird.x += Math.floor(Math.random() * 5) - 2;
+    bird.y += Math.floor(Math.random() * 5) - 2;
+}
+
+function null_view(creature) { ; }
+
+creature_list = [];
+
 terrain_options = {
-    "bare_dirt" : new Terrain("_", "bare dirt", 1)
-    ,"grass" : new Terrain("v", "grass", 1)
-    ,"tree" : new Terrain("TY", "tree", 10)
+    'bare_dirt' : new Terrain('_', 'bare dirt', 1)
+    ,'grass' : new Terrain('v', 'grass', 1)
+    ,'tree' : new Terrain("TY", 'tree', 0)
 };
 
 terrain_mapping = {
-    "_" : terrain_options["bare_dirt"]
-    ,"v" : terrain_options["grass"]
-    ,"Y" : terrain_options["tree"]
-    ,"T" : terrain_options["tree"]
+    '_' : terrain_options['bare_dirt']
+    ,'v' : terrain_options['grass']
+    ,'Y' : terrain_options['tree']
+    ,'T' : terrain_options['tree']
 }
 
-terrain_distribution = "_____vvvvYT";
+terrain_distribution = '_____vvvvYT';
+
+creature_count = 1;
+function add_creatures() {
+    for (i = 0; i < creature_count; i++) {
+	x = Math.floor(Math.random() * (buffer_width - 2)) + 1;
+	y = Math.floor(Math.random() * (buffer_height - 2)) + 1;
+	t = map_text[y * buffer_width + x];
+	r = creature_distribution[t][Math.floor(Math.random() * creature_distribution[t].length)];
+	switch(r) {
+	    case 'c': creature_list.push(new Creature('c', 'small cat', 'a small cat', x, y, cat_move, null_view)); break;
+	    case 's': creature_list.push(new Creature('s', 'small snake', 'a small snake', x, y, snake_move, null_view)); break;
+	    case 'C': creature_list.push(new Creature('C', 'big cat', 'a big cat', x, y, cat_move, null_view)); break;
+	    case '^': creature_list.push(new Creature('^', 'small bird', 'a small bird', x, y, bird_move, null_view)); break;
+	}
+    }
+}
 
 function paint_map() {
-    s = "";
+    s = '';
     for (y = -vision_distance; y <= vision_distance; y++) {
 	for (x = -vision_distance; x <= vision_distance; x++) {
-	    // todo: add vision range computation (sqrt(sqr(x) + sqr(y)))
-	    if (x || y) s += map_text[(loc_y + y) * buffer_width + loc_x + x];
-	    else s += '@';
+	    if (Math.sqrt(x * x + y * y) > vision_distance) { s += ' '; continue; }
+	    if (!x && !y) { s += '@'; continue; }
+	    for (i = 0; i < creature_list.length; i++) {
+		if (creature_list[i].x == loc_x + x && creature_list[i].y == loc_y + y) {
+		    s += creature_list[i].char; break;
+		}
+	    }
+	    if (i < creature_list.length) continue;
+	    s += map_text[(loc_y + y) * buffer_width + loc_x + x];
 	}
-	s += "\n";
+	s += '\n';
     }
-    map_elt.innerHTML = "<pre>" + s + "</pre>";
+    map_elt.innerHTML = '<pre>' + s + '</pre>';
 }
 
 function pick_char(x, y) {
@@ -85,7 +137,7 @@ function place_terrain(x, y) {
 }
 
 function pad_string(char, len) {
-    for (s = "", i = len; i; s += char, i--) { ; }
+    for (s = '', i = len; i; s += char, i--) { ; }
     return s;
 }
 
@@ -93,7 +145,7 @@ function check_map() {
     while(loc_x < event_distance) {
 	// add to the left
 	for (y = buffer_height - 1; y >= 0; y--) {
-	    map_text = map_text.substr(0, y * buffer_width) + " " + map_text.substr(y * buffer_width);
+	    map_text = map_text.substr(0, y * buffer_width) + ' ' + map_text.substr(y * buffer_width);
 	}
 	buffer_width++; loc_x++;
 	for (y = 0; y < buffer_height - 2; y++) { place_terrain(1, y + 1); }
@@ -101,50 +153,98 @@ function check_map() {
     while(loc_x + event_distance > buffer_width - 1) {
 	// add to the right
 	for (y = buffer_height; y; y--) {
-	    map_text = map_text.substr(0, y * buffer_width + 1) + " " + map_text.substr(y * buffer_width + 1);
+	    map_text = map_text.substr(0, y * buffer_width + 1) + ' ' + map_text.substr(y * buffer_width + 1);
 	}
 	buffer_width++;
 	for (y = 0; y < buffer_height - 2; y++) { place_terrain(buffer_width - 2, y + 1); }
     }
     while(loc_y < event_distance) {
 	// add to the top
-	map_text = pad_string(" ", buffer_width) + map_text;
+	map_text = pad_string(' ', buffer_width) + map_text;
 	buffer_height++; loc_y++;
 	for (x = 0; x < buffer_width - 2; x++) { place_terrain(x + 1, 1); }
     }
     while(loc_y + event_distance > buffer_height - 2) {
 	// add to the bottom
-	map_text = map_text + pad_string(" ", buffer_width);
+	map_text = map_text + pad_string(' ', buffer_width);
 	buffer_height++;
-	for (x = 0; x < buffer_width - 1; x++) { place_terrain(x + 1, buffer_height - 2); }
+	for (x = 0; x < buffer_width - 2; x++) { place_terrain(x + 1, buffer_height - 2); }
     }
 }
 
-function kp(e) {
-    kp_elt.innerHTML = " keypress: " + e.charCode + " + " + e.keyCode;
-    switch(e.charCode) {
-	case 0:
-	    switch(e.keyCode) {
-		case 37: loc_x -= 1; break;
-		case 38: loc_y -= 1; break;
-		case 39: loc_x += 1; break;
-		case 40: loc_y += 1; break;
-	    }
-	    break;
+highlighted_keys = [];
+interval_var = null;
+
+function unhighlight(key) {
+    kp_elt.innerHTML = '';
+    while (e = highlighted_keys.pop()) {
+	e.style.background = 'white';
+    }
+    window.clearInterval(interval_var);
+}
+
+function highlight(key) {
+    elt = document.getElementById(key);
+    elt.style.background = 'black';
+    highlighted_keys.push(elt);
+    interval_var = window.setInterval(unhighlight, 200);
+}
+
+function move(dx, dy) {
+    add_creatures();
+    for (i = 0; i < creature_list.length; i++) {
+	creature_list[i].movefn(creature_list[i]);
+    }
+    new_x = loc_x + dx; new_y = loc_y + dy;
+    c = map_text[new_y * buffer_width + new_x];
+    t = terrain_mapping[c];
+    if (t.move) { loc_x = new_x; loc_y = new_y; }
+}
+
+function keypress(k) {
+    kp_elt.innerHTML = ' keypress: ' + k;
+    switch(k) {
+	case 'w': highlight(k); move(0, -1); break;
+	case 'a': highlight(k); move(-1, 0); break;
+	case 's': highlight(k); move(0, 1); break;
+	case 'd': highlight(k); move(1, 0); break;
     }
     check_map();
     paint_map();
 }
 
+function kp(e) {
+    switch(e.charCode) {
+	case 0: switch(e.keyCode) { // re-map arrow keys to wasd
+	    case 37: keypress('a'); return;
+	    case 38: keypress('w'); return;
+	    case 39: keypress('d'); return;
+	    case 40: keypress('s'); return;
+	}
+	case 97: keypress('a'); return;
+	case 100: keypress('d'); return;
+	case 115: keypress('s'); return;
+	case 119: keypress('w'); return;
+    }
+}
+
 function go() {
-    map_elt = document.getElementById("map");
-    kp_elt = document.getElementById("kp");
+    map_elt = document.getElementById('map');
+    kp_elt = document.getElementById('kp');
     check_map();
     paint_map();
     document.onkeypress = kp;
 }
-</script></head><body onload="go()">
+</script>
+<style type="text/css">
+span.key { border-style:solid; border-width: medium; }
+</style>
+</head><body onload="go()">
 <div id="map">
+</div>
+<table border=0><tr><td></td><td align="center"><span id="w" class="key" onclick=keypress("w")>W</span></td></tr>
+<tr><td align="center"><span id="a" class="key" onclick=keypress('a')>A</span></td><td></td><td align="center"><span id="d" class="key" onclick=keypress('d')>D</span></td></tr>
+<tr><td></td><td align="center"><span id="s" class="key" onclick=keypress('s')>S</span></td></tr></table>
 </div>
 <div id="kp">
 </div>
