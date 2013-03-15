@@ -7,6 +7,8 @@ map_elt = null;
 stat_hp_elt = null;
 stat_photos_elt = null;
 msg_elt = null;
+noise = 0;
+score = 0;
 
 map = [];
 vision_distance = 10;
@@ -16,6 +18,7 @@ event_distance = 20;
 loc_x = 0;
 loc_y = 0;
 hp = 100;
+poison = 0;
 photos = 0;
 shotsleft = 24;
 
@@ -82,7 +85,7 @@ function player_los_fn(x, y, payload) {
 	player_los_map[los_x][los_y] = '0';
 	payload.have_vision = false;
     }
-    if (terrain_mapping[map[x][y]].los) {
+    if (terrain_mapping[map[x][y]].block_los) {
 	// I can see the object blocking LOS but not beyond
 	player_los_map[los_x][los_y] = '1';
 	payload.have_vision = false;
@@ -111,7 +114,7 @@ function player_los() {
 	compute_player_los(x, loc_y - vision_horizon, player_los_map);
 	compute_player_los(x, loc_y + vision_horizon + 1, player_los_map);
     }
-	//los_map_elt.innerHTML = '<pre>' + debug_map(player_los_map) + '</pre>';
+//los_map_elt.innerHTML = '<pre>' + debug_map(player_los_map) + '</pre>';
 }
 
 function paint_map() {
@@ -141,7 +144,8 @@ function paint_map() {
 
     stat_hp_elt.innerHTML = hp;
     stat_photos_elt.innerHTML = photos;
-    stat_shotsleft.innerHTML = shotsleft;
+    stat_score_elt.innerHTML = score;
+    stat_shotsleft_elt.innerHTML = shotsleft;
 }
 
 function place_terrain(x, y) {
@@ -201,7 +205,23 @@ function highlight(key) {
     interval_var = window.setInterval(unhighlight, 200);
 }
 
-function ticktock(t=1.0) {
+function damage(dmg, m) {
+    if (!m) m = '';
+    hp -= Math.floor(dmg);
+    if (hp > 0)
+	msg(m,200);
+    else msg(m + '...YOU DIED', null);
+}
+
+function poisoncheck() {
+    if (poison > 0) {
+	damage(Math.random() * 10, 'The poison causes pain.');
+	poison--;
+    }
+}
+
+function ticktock(t) {
+    poisoncheck();
     add_creatures();
     move_creatures(t);
     paint_map();
@@ -218,7 +238,7 @@ function fade_msg() {
     }
 }
 
-function msg(string, fade=null) {
+function msg(string, fade) {
     if (msg_interval) {
 	window.clearInterval(msg_interval);
 	msg_interval = null;
@@ -231,29 +251,24 @@ function msg(string, fade=null) {
 
 o_key = null;
 
-function limit(chars=null) {
-    for (var k in o_key) {
-	if (!chars || chars.contains(k)) o_key[k].style.color = '#000000';
-	else o_key[k].style.color = '#CCCCCC';
-    }
-}
-
 waiting_fn = null;
 
 function photo_bres_fn(x, y, payload) {
     if (!payload.have_vision) return 0;
-    if (terrain_mapping[map[x][y]].los) {
+    if (terrain_mapping[map[x][y]].block_los) {
 	// I can see the object blocking LOS but not beyond
 	payload.have_vision = false;
     }
 
     for (var i = 0; i < creature_list.length; i++) {
-	if (creature_list[i].x == x && creature_list[i].y == y) {
-	    if (creature_list[i].photographed) {
-		payload.photographed.push(creature_list[i]);
+	var c = creature_list[i];
+	if (c.x == x && c.y == y) {
+	    if (c.photographed) {
+		if (payload.photographed.indexOf(c) < 0)
+		    payload.photographed.push(c);
 		continue;
 	    }
-	    payload.creature = creature_list[i];
+	    payload.creature = c;
 	    return 0;
 	}
     }
@@ -268,7 +283,7 @@ function photo_bres_fn_payload() {
 }
 
 function photo_direction(k) {
-    limit();
+    limit_keys(null);
     msg('taking photo', 10);
     waiting_fn = null;
     shotsleft--;
@@ -343,11 +358,20 @@ function photo_direction(k) {
     }
     if (closest_creature) {
 	photos++;
-	msg('Photo of a ' + closest_creature.name + ' taken!');
+	var dx = closest_creature.x - loc_x;
+	var dy = closest_creature.y - loc_y;
+	var distance = Math.floor(Math.sqrt(dx * dx + dy * dy));
+	if (distance < 1) distance = 1; // unsure if this can ever happen
+	score += Math.floor(100 / distance);
+	msg('Photo of a ' + closest_creature.name + ' taken!', null);
 	closest_creature.photographed = true;
     } else {
-	if (p.photographed.length == 1) {
-	    msg('You already have a photo of that ' + p.photographed[0].name + '.');
+	if (p.photographed.length == 0) {
+	    msg('Shot wasted!', null);
+	    score -= 10;
+	} else if (p.photographed.length == 1) {
+	    msg('You already have a photo of that ' + p.photographed[0].name + '.', null);
+	    score--;
 	} else if (p.photographed.length > 1) {
 	    var m = 'You already have photos of that ';
 	    for (var i = 0; i < p.photographed.length; i++) {
@@ -355,7 +379,8 @@ function photo_direction(k) {
 		m += p.photographed[i].name;
 	    }
 	    m += '.';
-	    msg(m);
+	    msg(m, null);
+	    score--;
 	}
     }
     ticktock(0.1);
@@ -363,8 +388,8 @@ function photo_direction(k) {
 
 function ask_photo() {
     if (shotsleft) {
-	msg('Shoot in which direction?');
-	limit('wasd');
+	msg('Shoot in which direction?', null);
+	limit_keys('wasd');
 	waiting_fn = photo_direction;
     } else {
 	msg('<click>', 200);
@@ -372,30 +397,36 @@ function ask_photo() {
     }
 }
 
-function move_walk(dx, dy) {
+function move_do(dx, dy) {
     var new_x = loc_x + dx; var new_y = loc_y + dy;
     if (terrain_mapping[map[new_x][new_y]].move) {
 	loc_x = new_x; loc_y = new_y;
 	check_map();
     }
+}
+
+function move_noise(x, y, mult) {
+    noise *= .5; // natural decay
+    var addl = terrain_mapping[map[x][y]].noise * mult + Math.random() * .2;
+    noise += addl;
+    if (addl > .55) msg("Crunch!", 50);
+}
+
+function move_walk(dx, dy) {
+    move_do(dx, dy);
+    move_noise(loc_x, loc_y, 1);
     ticktock(1);
 }
 
 function move_crouch(dx, dy) {
-    var new_x = loc_x + dx; var new_y = loc_y + dy;
-    if (terrain_mapping[map[new_x][new_y]].move) {
-	loc_x = new_x; loc_y = new_y;
-	check_map();
-    }
+    move_do(dx, dy);
+    move_noise(loc_x, loc_y, .2);
     ticktock(3);
 }
 
 function move_crawl(dx, dy) {
-    var new_x = loc_x + dx; var new_y = loc_y + dy;
-    if (terrain_mapping[map[new_x][new_y]].move) {
-	loc_x = new_x; loc_y = new_y;
-	check_map();
-    }
+    move_do(dx, dy);
+    move_noise(loc_x, loc_y, .1);
     ticktock(7);
 }
 
@@ -409,31 +440,43 @@ function crouch() {
 	    move = move_crouch;
 	    ct.innerHTML = 'rawl';
 	    mm.innerHTML = 'Crouch';
-	    msg('You crouch.');
+	    msg('You crouch.', null);
 	    break;
 	case move_crouch:
 	    move = move_crawl;
 	    ct.innerHTML = ' walk';
 	    mm.innerHTML = 'Crawl';
-	    msg('You crawl.');
+	    msg('You crawl.', null);
 	    break;
 	case move_crawl:
 	    move = move_walk;
 	    ct.innerHTML = 'rouch';
 	    mm.innerHTML = 'Walk';
-	    msg('You walk.');
+	    msg('You walk.', null);
 	    break;
     }
     ticktock(1);
 }
+
+function reload_film() {
+    shotsleft = 24;
+    msg('You load a new roll of film.', null);
+    noise += 3;
+    ticktock(10);
+}
+
 function keypress(k) {
+    if (hp <= 0) return;
     if (waiting_fn) { return waiting_fn(k); }
+    if (!o_key[k].enabled) return;
+
     switch(k) {
 	case 'w': highlight(k); move(0, -1); break;
 	case 'a': highlight(k); move(-1, 0); break;
 	case 's': highlight(k); move(0, 1); break;
 	case 'd': highlight(k); move(1, 0); break;
 	case 't': highlight(k); ask_photo(); break;
+	case 'r': highlight(k); reload_film(); break;
 	case 'c': highlight(k); crouch(); break;
     }
 }
@@ -450,9 +493,32 @@ function kp(e) {
 	case 97: keypress('a'); return;
 	case 99: keypress('c'); return;
 	case 100: keypress('d'); return;
+	case 114: keypress('r'); return;
 	case 115: keypress('s'); return;
 	case 116: keypress('t'); return;
 	case 119: keypress('w'); return;
+    }
+}
+
+function key_status_class(elt, enabled) {
+    this.elt = elt; this.enabled = enabled;
+}
+
+function enable_key(k) {
+    k.elt.style.color = '#000000';
+    k.enabled = true;
+}
+
+function disable_key(k) {
+    k.elt.style.color = '#CCCCCC';
+    k.enabled = false;
+}
+
+function limit_keys(chars) {
+    for (var k in o_key) {
+	if (!chars) { enable_key(o_key[k]); continue; }
+	if (chars.indexOf(k) >= 0) { enable_key(o_key[k]); continue; }
+	disable_key(o_key[k]);
     }
 }
 
@@ -461,14 +527,16 @@ function go() {
     msg_elt = document.getElementById('msg');
     stat_hp_elt = document.getElementById('stat_hp');
     stat_photos_elt = document.getElementById('stat_photos');
+    stat_score_elt = document.getElementById('stat_score');
     stat_shotsleft_elt = document.getElementById('stat_shotsleft');
     o_key = {
-	'w': document.getElementById('o_w')
-	,'a': document.getElementById('o_a')
-	,'s': document.getElementById('o_s')
-	,'d': document.getElementById('o_d')
-	,'t': document.getElementById('o_t')
-	,'c': document.getElementById('o_c')
+	'w': new key_status_class(document.getElementById('o_w'), true)
+	,'a': new key_status_class(document.getElementById('o_a'), true)
+	,'s': new key_status_class(document.getElementById('o_s'), true)
+	,'d': new key_status_class(document.getElementById('o_d'), true)
+	,'t': new key_status_class(document.getElementById('o_t'), true)
+	,'c': new key_status_class(document.getElementById('o_c'), true)
+	,'r': new key_status_class(document.getElementById('o_r'), true)
     };
     check_map();
     paint_map();
@@ -487,6 +555,7 @@ span.key { border-style:solid; border-width: medium; }
     <tr><th>Move</th><td><span id="move_mode">Walk</span></td></tr>
     <tr><th>HP</th><td><span id="stat_hp"></span></td></tr>
     <tr><th>Photos</th><td><span id="stat_photos"></span></td></tr>
+    <tr><th>Score</th><td><span id="stat_score"></span></td></tr>
     <tr><th>Shots left on this roll</th><td><span id="stat_shotsleft"></span></td></tr>
 </table>
 </td></tr></table>
@@ -495,6 +564,7 @@ span.key { border-style:solid; border-width: medium; }
     <td></td>
     <td align="center"><div id="o_w"><span id="w" class="key" onclick=keypress("w")>W</span><br/>up</div></td>
     <td></td>
+    <td align="center"><div id="o_r"><span id="r" class="key" onclick=keypress("r")>R</span>eplace film</div></td>
     <td align="center"><div id="o_t"><span id="t" class="key" onclick=keypress("t")>T</span>ake photo</div></td>
 </tr><tr>
     <td align="center"><div id="o_a"><span id="a" class="key" onclick=keypress('a')>A</span><br/>left</div></td>

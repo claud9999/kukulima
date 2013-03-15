@@ -1,12 +1,13 @@
 // CLASS: Terrain
-function Terrain(char, desc, move, los) {
-    this.char = char; this.desc = desc; this.move = move; this.los = los;
+function Terrain(char, desc, move, block_los, noise) {
+    this.char = char; this.desc = desc; this.move = move;
+    this.block_los = block_los; this.noise = noise;
 }
 
 terrain_options = {
-    'bare_dirt' : new Terrain('_', 'bare dirt', 1, 0)
-    ,'grass' : new Terrain('v', 'grass', 1, 0)
-    ,'tree' : new Terrain("TY", 'tree', 0, 1)
+    'bare_dirt' : new Terrain('_', 'bare dirt', 1, false, .1)
+    ,'grass' : new Terrain('v', 'grass', 1, false, .5)
+    ,'tree' : new Terrain("TY", 'tree', 0, true, 0)
 };
 
 terrain_mapping = {
