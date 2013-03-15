@@ -4,8 +4,9 @@
 <script type="text/javascript" src="terrain.js"></script>
 <script type="text/javascript">
 map_elt = null;
-los_map_elt = null;
-kp_elt = null;
+stat_hp_elt = null;
+stat_photos_elt = null;
+msg_elt = null;
 
 map = [];
 vision_distance = 10;
@@ -14,6 +15,9 @@ render_size = 2 * render_distance + 1;
 event_distance = 20;
 loc_x = 0;
 loc_y = 0;
+hp = 100;
+photos = 0;
+shotsleft = 24;
 
 var player_los_map = [];
 for (var x = 0; x <= render_size; x++) {
@@ -64,7 +68,7 @@ function bresenham_line_algorithm(start_x, start_y, end_x, end_y, fn, payload) {
 
 function player_los_fn_payload(end_x, end_y) {
     this.end_x = end_x; this.end_y = end_y;
-    this.have_vision = 1;
+    this.have_vision = true;
 }
 
 function player_los_fn(x, y, payload) {
@@ -76,12 +80,12 @@ function player_los_fn(x, y, payload) {
     }
     if (dx * dx + dy * dy > vision_distance * vision_distance) {
 	player_los_map[los_x][los_y] = '0';
-	payload.have_vision = 0;
+	payload.have_vision = false;
     }
     if (terrain_mapping[map[x][y]].los) {
 	// I can see the object blocking LOS but not beyond
 	player_los_map[los_x][los_y] = '1';
-	payload.have_vision = 0;
+	payload.have_vision = false;
     }
     player_los_map[los_x][los_y] = '1';
     return 1;
@@ -134,6 +138,10 @@ function paint_map() {
 	s += '\n';
     }
     map_elt.innerHTML = '<pre>' + s + '</pre>';
+
+    stat_hp_elt.innerHTML = hp;
+    stat_photos_elt.innerHTML = photos;
+    stat_shotsleft.innerHTML = shotsleft;
 }
 
 function place_terrain(x, y) {
@@ -179,7 +187,7 @@ highlighted_keys = [];
 interval_var = null;
 
 function unhighlight(key) {
-//    kp_elt.innerHTML = '';
+//    msg_elt.innerHTML = '';
     while (e = highlighted_keys.pop()) {
 	e.style.background = 'white';
     }
@@ -193,32 +201,245 @@ function highlight(key) {
     interval_var = window.setInterval(unhighlight, 200);
 }
 
-function ticktock() {
+function ticktock(t=1.0) {
     add_creatures();
-    move_creatures(1.0);
+    move_creatures(t);
     paint_map();
 }
 
-function move(dx, dy) {
+msg_color_hexlist = ['#000000', '#111111', '#222222', '#333333', '#444444', '#555555', '#666666', '#777777', '#888888', '#999999', '#AAAAAA', '#BBBBBB', '#CCCCCC', '#DDDDDD', '#EEEEEE', '#FFFFFF'];
+msg_interval = null;
+msg_color = 0;
+function fade_msg() {
+    msg_elt.style.color = msg_color_hexlist[++msg_color];
+    if (msg_color == msg_color_hexlist.length - 1) {
+	window.clearInterval(msg_interval);
+	msg_interval = null;
+    }
+}
+
+function msg(string, fade=null) {
+    if (msg_interval) {
+	window.clearInterval(msg_interval);
+	msg_interval = null;
+    }
+    msg_elt.innerHTML = string;
+    msg_elt.style.color = '#000000';
+    msg_color = 0;
+    if (fade) msg_interval = window.setInterval(fade_msg, fade);
+}
+
+o_key = null;
+
+function limit(chars=null) {
+    for (var k in o_key) {
+	if (!chars || chars.contains(k)) o_key[k].style.color = '#000000';
+	else o_key[k].style.color = '#CCCCCC';
+    }
+}
+
+waiting_fn = null;
+
+function photo_bres_fn(x, y, payload) {
+    if (!payload.have_vision) return 0;
+    if (terrain_mapping[map[x][y]].los) {
+	// I can see the object blocking LOS but not beyond
+	payload.have_vision = false;
+    }
+
+    for (var i = 0; i < creature_list.length; i++) {
+	if (creature_list[i].x == x && creature_list[i].y == y) {
+	    if (creature_list[i].photographed) {
+		payload.photographed.push(creature_list[i]);
+		continue;
+	    }
+	    payload.creature = creature_list[i];
+	    return 0;
+	}
+    }
+
+    return 1;
+}
+
+function photo_bres_fn_payload() {
+    this.creature = null;
+    this.have_vision = true;
+    this.photographed = [];
+}
+
+function photo_direction(k) {
+    limit();
+    msg('taking photo', 10);
+    waiting_fn = null;
+    shotsleft--;
+    
+    var p = new photo_bres_fn_payload();
+    var closest_creature = null;
+    switch(k) {
+	case 'w':
+	    for (var x = loc_x - vision_distance; x <= loc_x + vision_distance; x++) {
+		p.creature = null; p.have_vision = true;
+		bresenham_line_algorithm(loc_x, loc_y, x, loc_y - vision_distance, photo_bres_fn, p);
+		if (p.creature) {
+		    if (closest_creature) {
+			var dx = loc_x - closest_creature.x;
+			var dy = loc_y - closest_creature.y;
+			var cc_dist = dx * dx + dy * dy;
+			dx = loc_x - p.creature.x; dy = loc_y - p.creature.y;
+			if (dx * dx + dy * dy < cc_dist)
+			    closest_creature = p.creature;
+		    } else closest_creature = p.creature;
+		}
+	    }
+	    break;
+	case 'a':
+	    for (var y = loc_y - vision_distance; y <= loc_y + vision_distance; y++) {
+		p.creature = null; p.have_vision = true;
+		bresenham_line_algorithm(loc_x, loc_y, loc_x - vision_distance, y, photo_bres_fn, p);
+		if (p.creature) {
+		    if (closest_creature) {
+			var dx = loc_x - closest_creature.x;
+			var dy = loc_y - closest_creature.y;
+			var cc_dist = dx * dx + dy * dy;
+			dx = loc_x - p.creature.x; dy = loc_y - p.creature.y;
+			if (dx * dx + dy * dy < cc_dist)
+			    closest_creature = p.creature;
+		    } else closest_creature = p.creature;
+		}
+	    }
+	    break;
+	case 's':
+	    for (var x = loc_x - vision_distance; x <= loc_x + vision_distance; x++) {
+		p.creature = null; p.have_vision = true;
+		bresenham_line_algorithm(loc_x, loc_y, x, loc_y + vision_distance, photo_bres_fn, p);
+		if (p.creature) {
+		    if (closest_creature) {
+			var dx = loc_x - closest_creature.x;
+			var dy = loc_y - closest_creature.y;
+			var cc_dist = dx * dx + dy * dy;
+			dx = loc_x - p.creature.x; dy = loc_y - p.creature.y;
+			if (dx * dx + dy * dy < cc_dist)
+			    closest_creature = p.creature;
+		    } else closest_creature = p.creature;
+		}
+	    }
+	    break;
+	case 'd':
+	    for (var y = loc_y - vision_distance; y <= loc_y + vision_distance; y++) {
+		p.creature = null; p.have_vision = true;
+		bresenham_line_algorithm(loc_x, loc_y, loc_x + vision_distance, y, photo_bres_fn, p);
+		if (p.creature) {
+		    if (closest_creature) {
+			var dx = loc_x - closest_creature.x;
+			var dy = loc_y - closest_creature.y;
+			var cc_dist = dx * dx + dy * dy;
+			dx = loc_x - p.creature.x; dy = loc_y - p.creature.y;
+			if (dx * dx + dy * dy < cc_dist)
+			    closest_creature = p.creature;
+		    } else closest_creature = p.creature;
+		}
+	    }
+	    break;
+    }
+    if (closest_creature) {
+	photos++;
+	msg('Photo of a ' + closest_creature.name + ' taken!');
+	closest_creature.photographed = true;
+    } else {
+	if (p.photographed.length == 1) {
+	    msg('You already have a photo of that ' + p.photographed[0].name + '.');
+	} else if (p.photographed.length > 1) {
+	    var m = 'You already have photos of that ';
+	    for (var i = 0; i < p.photographed.length; i++) {
+		if (i) m += ', ';
+		m += p.photographed[i].name;
+	    }
+	    m += '.';
+	    msg(m);
+	}
+    }
+    ticktock(0.1);
+}
+
+function ask_photo() {
+    if (shotsleft) {
+	msg('Shoot in which direction?');
+	limit('wasd');
+	waiting_fn = photo_direction;
+    } else {
+	msg('<click>', 200);
+	ticktock(0.1);
+    }
+}
+
+function move_walk(dx, dy) {
     var new_x = loc_x + dx; var new_y = loc_y + dy;
     if (terrain_mapping[map[new_x][new_y]].move) {
 	loc_x = new_x; loc_y = new_y;
 	check_map();
     }
-    ticktock();
+    ticktock(1);
 }
 
+function move_crouch(dx, dy) {
+    var new_x = loc_x + dx; var new_y = loc_y + dy;
+    if (terrain_mapping[map[new_x][new_y]].move) {
+	loc_x = new_x; loc_y = new_y;
+	check_map();
+    }
+    ticktock(3);
+}
+
+function move_crawl(dx, dy) {
+    var new_x = loc_x + dx; var new_y = loc_y + dy;
+    if (terrain_mapping[map[new_x][new_y]].move) {
+	loc_x = new_x; loc_y = new_y;
+	check_map();
+    }
+    ticktock(7);
+}
+
+move = move_walk;
+
+function crouch() {
+    var mm = document.getElementById("move_mode");
+    var ct = document.getElementById("crouch_text");
+    switch(move) {
+	case move_walk:
+	    move = move_crouch;
+	    ct.innerHTML = 'rawl';
+	    mm.innerHTML = 'Crouch';
+	    msg('You crouch.');
+	    break;
+	case move_crouch:
+	    move = move_crawl;
+	    ct.innerHTML = ' walk';
+	    mm.innerHTML = 'Crawl';
+	    msg('You crawl.');
+	    break;
+	case move_crawl:
+	    move = move_walk;
+	    ct.innerHTML = 'rouch';
+	    mm.innerHTML = 'Walk';
+	    msg('You walk.');
+	    break;
+    }
+    ticktock(1);
+}
 function keypress(k) {
+    if (waiting_fn) { return waiting_fn(k); }
     switch(k) {
 	case 'w': highlight(k); move(0, -1); break;
 	case 'a': highlight(k); move(-1, 0); break;
 	case 's': highlight(k); move(0, 1); break;
 	case 'd': highlight(k); move(1, 0); break;
+	case 't': highlight(k); ask_photo(); break;
+	case 'c': highlight(k); crouch(); break;
     }
 }
 
 function kp(e) {
-    kp_elt.innerHTML = 'charCode = ' + e.charCode + ' keyCode = ' + e.keyCode;
+    msg('charCode = ' + e.charCode + ' keyCode = ' + e.keyCode, 10);
     switch(e.charCode) {
 	case 0: switch(e.keyCode) { // re-map arrow keys to wasd
 	    case 37: keypress('a'); return;
@@ -227,16 +448,28 @@ function kp(e) {
 	    case 40: keypress('s'); return;
 	}
 	case 97: keypress('a'); return;
+	case 99: keypress('c'); return;
 	case 100: keypress('d'); return;
 	case 115: keypress('s'); return;
+	case 116: keypress('t'); return;
 	case 119: keypress('w'); return;
     }
 }
 
 function go() {
     map_elt = document.getElementById('map');
-    kp_elt = document.getElementById('kp');
-    los_map_elt = document.getElementById('los');
+    msg_elt = document.getElementById('msg');
+    stat_hp_elt = document.getElementById('stat_hp');
+    stat_photos_elt = document.getElementById('stat_photos');
+    stat_shotsleft_elt = document.getElementById('stat_shotsleft');
+    o_key = {
+	'w': document.getElementById('o_w')
+	,'a': document.getElementById('o_a')
+	,'s': document.getElementById('o_s')
+	,'d': document.getElementById('o_d')
+	,'t': document.getElementById('o_t')
+	,'c': document.getElementById('o_c')
+    };
     check_map();
     paint_map();
     document.onkeypress = kp;
@@ -250,25 +483,31 @@ span.key { border-style:solid; border-width: medium; }
 <div id="map">
 </div>
 </td><td>
-<div id="los">
-</div>
+<table border="1">
+    <tr><th>Move</th><td><span id="move_mode">Walk</span></td></tr>
+    <tr><th>HP</th><td><span id="stat_hp"></span></td></tr>
+    <tr><th>Photos</th><td><span id="stat_photos"></span></td></tr>
+    <tr><th>Shots left on this roll</th><td><span id="stat_shotsleft"></span></td></tr>
+</table>
 </td></tr></table>
 <table border=0>
 <tr>
     <td></td>
-    <td align="center"><span id="w" class="key" onclick=keypress("w")>W</span><br/>up</td>
+    <td align="center"><div id="o_w"><span id="w" class="key" onclick=keypress("w")>W</span><br/>up</div></td>
     <td></td>
+    <td align="center"><div id="o_t"><span id="t" class="key" onclick=keypress("t")>T</span>ake photo</div></td>
 </tr><tr>
-    <td align="center"><span id="a" class="key" onclick=keypress('a')>A</span><br/>left</td>
+    <td align="center"><div id="o_a"><span id="a" class="key" onclick=keypress('a')>A</span><br/>left</div></td>
     <td></td>
-    <td align="center"><span id="d" class="key" onclick=keypress('d')>D</span><br/>right</td>
+    <td align="center"><div id="o_d"><span id="d" class="key" onclick=keypress('d')>D</span><br/>right</div></td>
 </tr>
 <tr>
     <td></td>
-    <td align="center"><span id="s" class="key" onclick=keypress('s')>S</span><br/>down</td>
+    <td align="center"><div id="o_s"><span id="s" class="key" onclick=keypress('s')>S</span><br/>down</div></td>
     <td></td>
+    <td align="center"><div id="o_c"><span id="c" class="key" onclick=keypress('c')>C</span><span id="crouch_text">rouch</span></div></td>
 </tr></table>
 </div>
-<div id="kp">
+<div id="msg">
 </div>
 </body></html>

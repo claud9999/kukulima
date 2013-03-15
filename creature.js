@@ -7,6 +7,7 @@ function Creature(char, name, gender, demeanor, moverate, x, y, movefn, viewfn) 
     this.char = char; this.name = name; this.gender = gender; this.demeanor = demeanor;
     this.x = x; this.y = y; this.movefn = movefn; this.viewfn = viewfn;
     this.ticcount = 0; this.moverate = moverate;
+    this.photographed = false;
 }
 
 creature_distribution = {
@@ -35,11 +36,11 @@ creature_list = [];
 female = 'female'; male = 'male';
 
 function Cat(char, x, y) {
-    return new Creature(char, char == 'c' ? 'a small cat' : 'a big cat', Math.random() > .5 ? female : male, 'hungry', 1, x, y, Cat_move, null_view);
+    return new Creature(char, char == 'c' ? 'small cat' : 'big cat', Math.random() > .5 ? female : male, 'hungry', 1, x, y, Cat_move, null_view);
 }
 
 function Snake(char, x, y) {
-    return new Creature(char, char == 's' ? 'a small snake' : 'a big snake', Math.random() > .5 ? female : male, 'hungry', 5, x, y, Snake_move, null_view);
+    return new Creature(char, char == 's' ? 'small snake' : 'big snake', Math.random() > .5 ? female : male, 'hungry', 5, x, y, Snake_move, null_view);
 }
 
 function Bird(char, x, y) {
@@ -80,7 +81,6 @@ function move_creatures(tics) {
 	c.ticcount += tics;
 	while (c.ticcount > c.moverate) {
 	    c.movefn(c);
-	    paint_map();
 	    c.ticcount -= c.moverate;
 	}
 	if (c.x < loc_x - event_distance || c.y < loc_y - event_distance
