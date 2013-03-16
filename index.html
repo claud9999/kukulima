@@ -2,10 +2,20 @@
 <script type="text/javascript" src="util.js"></script>
 <script type="text/javascript" src="creature.js"></script>
 <script type="text/javascript" src="terrain.js"></script>
+<script type="text/javascript" src="https://www.google.com/jsapi"></script>
 <script type="text/javascript">
+google.load('search', '1');
+
+function searchComplete() {
+    if (imageSearch.results && imageSearch.results.length > 0) {
+	photo_img_elt.innerHTML = '<table border="3"><tr><td><img src="' + imageSearch.results[Math.floor(Math.random() * imageSearch.results.length)].tbUrl + '"/></td></tr></table>';
+    }
+}
+
 map_elt = null;
 stat_hp_elt = null;
 stat_photos_elt = null;
+photo_img_elt = null;
 msg_elt = null;
 noise = 0;
 score = 0;
@@ -364,6 +374,7 @@ function photo_direction(k) {
 	if (distance < 1) distance = 1; // unsure if this can ever happen
 	score += Math.floor(100 / distance);
 	msg('Photo of a ' + closest_creature.name + ' taken!', null);
+	imageSearch.execute(closest_creature.search);
 	closest_creature.photographed = true;
     } else {
 	if (p.photographed.length == 0) {
@@ -523,10 +534,14 @@ function limit_keys(chars) {
 }
 
 function go() {
+imageSearch = new google.search.ImageSearch();
+imageSearch.setSearchCompleteCallback(document, searchComplete, null);
+
     map_elt = document.getElementById('map');
     msg_elt = document.getElementById('msg');
     stat_hp_elt = document.getElementById('stat_hp');
     stat_photos_elt = document.getElementById('stat_photos');
+    photo_img_elt = document.getElementById('photo_img');
     stat_score_elt = document.getElementById('stat_score');
     stat_shotsleft_elt = document.getElementById('stat_shotsleft');
     o_key = {
@@ -558,7 +573,7 @@ span.key { border-style:solid; border-width: medium; }
     <tr><th>Score</th><td><span id="stat_score"></span></td></tr>
     <tr><th>Shots left on this roll</th><td><span id="stat_shotsleft"></span></td></tr>
 </table>
-</td></tr></table>
+</td><td><div id="photo_img"></div></tr></table>
 <table border=0>
 <tr>
     <td></td>
@@ -580,4 +595,12 @@ span.key { border-style:solid; border-width: medium; }
 </div>
 <div id="msg">
 </div>
+<br/>
+<p>
+<i>Goal</i>: You (@) wander around the forest (_ = bare dirt, v = grass, T and
+Y = trees) and photograph creatures (c = small cat, C = big cat, s = snake,
+^ = bird). The closer you are to your subject, the more points you gain.</p>
+<p>
+<i>And don't die.</i>
+</p>
 </body></html>

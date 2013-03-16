@@ -3,8 +3,10 @@
 // TODO: add time of day, season
 // TODO: demeanors: hunting, afraid, wandering, horny
 // TODO: move rate
-function Creature(char, name, gender, demeanor, moverate, x, y, movefn) {
+function Creature(char, name, search, gender, demeanor, moverate, x, y,
+	movefn) {
     this.char = char; this.name = name; this.gender = gender; this.demeanor = demeanor;
+    this.search = search;
     this.x = x; this.y = y; this.movefn = movefn;
     this.ticcount = 0; this.moverate = moverate;
     this.photographed = false;
@@ -187,15 +189,16 @@ creature_list = [];
 female = 'female'; male = 'male';
 
 function Cat(char, x, y) {
-    return new Creature(char, char == 'c' ? 'small cat' : 'big cat', Math.random() > .5 ? female : male, 'hungry', 1, x, y, Cat_move);
+    var sex = Math.random() > .5 ? female : male;
+    return new Creature(char, char == 'c' ? 'small cat' : 'big cat', char == 'c' ? 'small african cat' : 'big african cat ' + sex, sex, 'hungry', 1, x, y, Cat_move);
 }
 
 function Snake(char, x, y) {
-    return new Creature(char, char == 's' ? 'small snake' : 'big snake', Math.random() > .5 ? female : male, 'hungry', 5, x, y, Snake_move);
+    return new Creature(char, char == 's' ? 'small snake' : 'big snake', char == 's' ? 'small african snake' : 'big african snake', Math.random() > .5 ? female : male, 'hungry', 5, x, y, Snake_move);
 }
 
 function Bird(char, x, y) {
-    return new Creature(char, 'bird', Math.random() > .5 ? female : male, 'hungry', .5, x, y, Bird_move);
+    return new Creature(char, 'bird', 'african bird', Math.random() > .5 ? female : male, 'hungry', .5, x, y, Bird_move);
 }
 
 creature_count = 1; // consider adding this many creatures to the map each tick
