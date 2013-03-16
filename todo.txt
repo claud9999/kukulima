@@ -1,0 +1,9 @@
+* variable LOS (trees partially obscure, use grays to indicate and creatures
+  have a % chance of being hidden when obscured)
+* more creatures!
+* add search terms when photo taken
+* % chance to miss shot (a function of distance)
+* telephoto lens option--higher score, easier to photograph far creatures but
+  harder to photograph close creatures
+* better logging, scrolling log
+* save/load?

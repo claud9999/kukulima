@@ -1,0 +1,43 @@
+--- text written before starting 7drl ---
+
+Goal: photograph animals in the wild. Avoid dangerous animals.
+
+Features (priority):
+5 * turn-based rogue-like.
+5 * browser.
+5 * simple controls or on-screen prompts. (wasd/arrow keys)
+4 * sneak (shift + direction)
+3 * crouch/lie down (c)
+4 * take photograph in a direction (space bar?)
+3 * whistle, shout ([shift] return key?)
+2 * reload film (f), change battery (b), change memory card (m), change lens (l)
+1 * "drops" are feathers, fur, teeth, bones
+1 * on-screen keys for iPad
+
+Use color, font, highlighting to indicate movement.
+
+v - grass
+V - reeds
+TYF - tree
+Y - tree
+# - thicket
+o - rock
+O - big rock
+u - dried grass
+_ - bare dirt
+~ - water
+c - cat
+C - big cat
+m - mouse
+M - rat
+s - snake
+S - big snake
+d - dog
+D - large dog
+b - bear
+B - large bear
+A - hut?
+@ - player
+^ - bird in flight
+b - bird
+B - large bird

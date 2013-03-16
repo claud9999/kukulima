@@ -175,7 +175,7 @@ function check_map() {
 	loc_x++;
 	width++;
     }
-    while(loc_x + event_distance >= width) {
+    while(loc_x + event_distance + 1 >= width) {
 	// add to the right
 	map.push([]);
 	for (y = 0; y < height; y++) { map[width].push(' '); }
@@ -189,7 +189,7 @@ function check_map() {
 	loc_y++;
 	height++;
     }
-    while(loc_y + event_distance >= height) {
+    while(loc_y + event_distance + 1 >= height) {
 	// add to bottom
 	for (x = 0; x < width; x++) map[x].push(' ');
 	for (x = 0; x < width; x++) place_terrain(x, height);
@@ -372,10 +372,14 @@ function photo_direction(k) {
 	var dy = closest_creature.y - loc_y;
 	var distance = Math.floor(Math.sqrt(dx * dx + dy * dy));
 	if (distance < 1) distance = 1; // unsure if this can ever happen
-	score += Math.floor(100 / distance);
-	msg('Photo of a ' + closest_creature.name + ' taken!', null);
-	imageSearch.execute(closest_creature.search);
-	closest_creature.photographed = true;
+	if (Math.random() * distance > 5) {
+	    msg('Missed the shot!', null);
+	} else {
+	    score += Math.floor(100 / distance);
+	    msg('Photo of a ' + closest_creature.name + ' taken!', null);
+	    imageSearch.execute(closest_creature.search);
+	    closest_creature.photographed = true;
+	}
     } else {
 	if (p.photographed.length == 0) {
 	    msg('Shot wasted!', null);
@@ -395,6 +399,7 @@ function photo_direction(k) {
 	}
     }
     ticktock(0.1);
+    noise += 3;
 }
 
 function ask_photo() {
@@ -493,7 +498,6 @@ function keypress(k) {
 }
 
 function kp(e) {
-    msg('charCode = ' + e.charCode + ' keyCode = ' + e.keyCode, 10);
     switch(e.charCode) {
 	case 0: switch(e.keyCode) { // re-map arrow keys to wasd
 	    case 37: keypress('a'); return;
